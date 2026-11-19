@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0A0A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Napo Pizzería · Repartidor</title>
+<style>
+:root{--bg:#0A0A0A;--card:#161616;--card2:#1F1F1F;--line:#2A2A2A;--tx:#F5F5F5;--mut:#8A8A8A;--ac:#FF5A1F;--ok:#3DDC84}
+*{box-sizing:border-box;margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+html,body{height:100%;background:var(--bg);color:var(--tx)}
+body{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.screen{display:none;min-height:100%;padding:24px;max-width:480px;margin:0 auto;flex-direction:column}
+.screen.on{display:flex}
+#splash{justify-content:space-between;padding:20vh 28px 48px}
+#splash h1{font-size:clamp(48px,16vw,72px);line-height:.95;letter-spacing:-2px}
+#splash h1 span{color:var(--ac)}
+#splash p{color:var(--mut);margin-top:16px}
+.bar{height:3px;background:var(--card2);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--ac);animation:l 2s ease forwards}
+@keyframes l{to{width:100%}}
+.ld{color:var(--mut);font-size:12px;margin-top:10px;letter-spacing:1px;text-transform:uppercase}
+#login{justify-content:flex-end;gap:14px;padding-bottom:48px}
+#login h2{font-size:38px;letter-spacing:-1px;line-height:1.05;margin-bottom:12px}
+button{border:0;cursor:pointer;font-size:15px;font-weight:600;border-radius:14px;padding:14px;color:var(--tx);background:var(--card2)}
+button.p{background:var(--ac);color:#fff}
+button.g{background:#fff;color:#111;padding:16px;font-size:16px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+header h2{font-size:24px;letter-spacing:-.5px}
+header button{padding:8px 14px;font-size:13px;border-radius:99px;color:var(--mut)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.stat b{font-size:20px;display:block}.stat small{color:var(--mut);font-size:12px}
+.tabs{display:flex;gap:8px;margin-bottom:14px;overflow-x:auto}
+.tabs button{padding:8px 16px;font-size:14px;border-radius:99px;background:var(--card);color:var(--mut);white-space:nowrap}
+.tabs button.on{background:var(--tx);color:#111}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:10px}
+.r{display:flex;justify-content:space-between;align-items:center;gap:8px}
+small,.mut{color:var(--mut);font-size:13px}
+.tag{font-size:11px;padding:4px 10px;border-radius:99px;background:var(--card2);color:var(--mut);text-transform:uppercase}
+.tag.n{background:rgba(255,90,31,.15);color:var(--ac)}.tag.k{background:rgba(61,220,132,.15);color:var(--ok)}
+ul{margin:10px 0}li{list-style:none;padding:5px 0;border-bottom:1px solid var(--line);font-size:14px}li:last-child{border:0}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.acts a{text-decoration:none;text-align:center;background:var(--card2);color:var(--tx);padding:12px;border-radius:12px;font-weight:600;font-size:14px}
+.full{width:100%;margin-top:8px}
+.empty{text-align:center;color:var(--mut);padding:40px 0}
+</style>
+</head>
+<body>
+
+<section id="splash" class="screen on">
+  <div><h1>Napo<br><span>Pizzería.</span></h1><p>Repartidores</p></div>
+  <div><div class="bar"><i></i></div><div class="ld">Cargando</div></div>
+</section>
+
+<section id="login" class="screen">
+  <h2>Entra y<br>empieza a<br>repartir.</h2>
+  <button class="g" id="btnGoogle">Continuar con Google</button>
+</section>
+
+<section id="app" class="screen">
+  <header><h2 id="hola">Hola 👋</h2><button id="btnSalir">Salir</button></header>
+  <div class="stats">
+    <div class="stat"><b id="sEnt">0</b><small>Entregas hoy</small></div>
+    <div class="stat"><b id="sProp">$0</b><small>Propinas</small></div>
+    <div class="stat"><b id="sEf">$0</b><small>Efectivo a entregar</small></div>
+  </div>
+  <div class="tabs" id="tabs">
+    <button data-t="nuevo" class="on">Nuevos</button>
+    <button data-t="curso">En camino</button>
+    <button data-t="hist">Historial</button>
+    <button data-t="res">Reseñas</button>
+  </div>
+  <div id="lista"></div>
+  <button class="full" id="btnSeed">Cargar datos de prueba</button>
+</section>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBOOeckPT_-BRuP_j9nYrk_47FRa1yo-2w",
+  authDomain: "napo-pizzeria.firebaseapp.com",
+  projectId: "napo-pizzeria",
+  storageBucket: "napo-pizzeria.firebasestorage.app",
+  messagingSenderId: "1092822567331",
+  appId: "1:1092822567331:web:81c97dbb7b028a08a0b216"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+let user = null, pedidos = [], resenas = [], tab = "nuevo", splashOk = false, authOk = false;
+const watches = new Map();
+
+function show(id){ document.querySelectorAll(".screen").forEach(s => s.classList.remove("on")); $(id).classList.add("on"); }
+function route(){ if(!splashOk || !authOk) return; show(user ? "app" : "login"); }
+setTimeout(() => { splashOk = true; route(); }, 2200);
+
+onAuthStateChanged(auth, u => { user = u; authOk = true; if(u) $("hola").textContent = "Hola, " + (u.displayName || "repa").split(" ")[0] + " 👋"; route(); render(); });
+$("btnGoogle").onclick = () => signInWithPopup(auth, new GoogleAuthProvider()).catch(e => alert("Error: " + e.message));
+$("btnSalir").onclick = () => signOut(auth);
+
+onSnapshot(query(collection(db, "pedidos"), orderBy("creado", "desc")), s => {
+  pedidos = s.docs.map(d => ({ id: d.id, ...d.data() }));
+  pedidos.filter(p => p.estado === "en_camino" && p.repartidorId === user?.uid).forEach(p => track(p.id));
+  render();
+}, e => console.error(e));
+onSnapshot(query(collection(db, "resenas"), orderBy("creado", "desc")), s => { resenas = s.docs.map(d => d.data()); render(); }, e => console.error(e));
+
+function track(id){
+  if(watches.has(id) || !navigator.geolocation) return;
+  const w = navigator.geolocation.watchPosition(
+    p => updateDoc(doc(db, "pedidos", id), { ubicacion: { lat: p.coords.latitude, lng: p.coords.longitude } }),
+    () => {}, { enableHighAccuracy: true });
+  watches.set(id, w);
+}
+function untrack(id){ if(watches.has(id)){ navigator.geolocation.clearWatch(watches.get(id)); watches.delete(id); } }
+
+window.aceptar = async id => {
+  await updateDoc(doc(db, "pedidos", id), { estado: "en_camino", repartidorId: user.uid, repartidorNombre: user.displayName || "" });
+  track(id);
+};
+window.entregar = async id => {
+  await updateDoc(doc(db, "pedidos", id), { estado: "entregado", entregadoEn: serverTimestamp() });
+  untrack(id);
+};
+
+function hoy(p){ const d = p.entregadoEn?.toDate?.(); return d && d.toDateString() === new Date().toDateString(); }
+
+function card(p){
+  const items = (p.items || []).map(i => "<li>" + esc(i) + "</li>").join("");
+  const maps = "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(p.direccion || "");
+  let btn = "";
+  if(p.estado === "nuevo") btn = `<button class="p full" onclick="aceptar('${p.id}')">Aceptar pedido</button>`;
+  if(p.estado === "en_camino") btn = `<button class="p full" onclick="entregar('${p.id}')">Marcar entregado</button>`;
+  const t = p.estado === "nuevo" ? '<span class="tag n">Nuevo</span>' : p.estado === "en_camino" ? '<span class="tag k">En camino</span>' : '<span class="tag">Entregado</span>';
+  return `<div class="card">
+    <div class="r"><b>${esc(p.cliente)}</b>${t}</div>
+    <small>${esc(p.direccion)}</small>
+    <ul>${items}</ul>
+    <div class="r"><small>${esc(p.pago)}${p.propina ? " · propina $" + p.propina : ""}</small><b>$${p.total}</b></div>
+    ${p.estado !== "entregado" ? `<div class="acts"><a href="${maps}" target="_blank" rel="noopener">Navegar</a><a href="tel:${esc(p.tel)}">Llamar</a></div>` : ""}
+    ${btn}</div>`;
+}
+
+function render(){
+  if(!user) return;
+  const mios = pedidos.filter(p => p.repartidorId === user.uid);
+  const ent = mios.filter(p => p.estado === "entregado" && hoy(p));
+  $("sEnt").textContent = ent.length;
+  $("sProp").textContent = "$" + ent.reduce((a, p) => a + (p.propina || 0), 0);
+  $("sEf").textContent = "$" + ent.filter(p => p.pago === "Efectivo").reduce((a, p) => a + p.total, 0);
+  let html = "";
+  if(tab === "res"){
+    html = resenas.map(r => `<div class="card"><b>${"★".repeat(r.estrellas)}${"☆".repeat(5 - r.estrellas)}</b> <small>· ${esc(r.cliente)}</small><p style="margin-top:6px;font-size:14px">${esc(r.texto)}</p></div>`).join("");
+  } else {
+    const l = tab === "nuevo" ? pedidos.filter(p => p.estado === "nuevo")
+            : tab === "curso" ? mios.filter(p => p.estado === "en_camino")
+            : mios.filter(p => p.estado === "entregado");
+    html = l.map(card).join("");
+  }
+  $("lista").innerHTML = html || '<div class="empty">Nada por aquí todavía</div>';
+}
+$("tabs").onclick = e => {
+  if(!e.target.dataset.t) return;
+  tab = e.target.dataset.t;
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b === e.target));
+  render();
+};
+
+$("btnSeed").onclick = async () => {
+  const base = { estado: "nuevo", creado: serverTimestamp() };
+  await addDoc(collection(db, "pedidos"), { ...base, cliente: "Carlos M.", tel: "5512345678", direccion: "Av. Hidalgo 123, Col. Centro", items: ["Pizza grande pepperoni", "Refresco 2L"], total: 285, propina: 20, pago: "Efectivo" });
+  await addDoc(collection(db, "pedidos"), { ...base, cliente: "Fer R.", tel: "5598765432", direccion: "Calle Morelos 45, Col. Jardines", items: ["Pizza mediana hawaiana", "Alitas x8"], total: 340, propina: 30, pago: "Tarjeta" });
+  await addDoc(collection(db, "pedidos"), { ...base, cliente: "Paty S.", tel: "5511223344", direccion: "Priv. Olmos 7, Col. Lomas", items: ["2 Pizzas chicas"], total: 230, propina: 0, pago: "Efectivo" });
+  await addDoc(collection(db, "resenas"), { cliente: "Ana", estrellas: 5, texto: "Llegó caliente y rápido, el repa muy amable.", creado: serverTimestamp() });
+  await addDoc(collection(db, "resenas"), { cliente: "Luis", estrellas: 4, texto: "Todo bien, tardó un poquito de más.", creado: serverTimestamp() });
+};
+
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+</script>
+</body>
+</html>
